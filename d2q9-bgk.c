@@ -49,8 +49,6 @@
 ** if you choose a different obstacle file.
 */
 
-/* test change
-
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
