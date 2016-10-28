@@ -94,9 +94,9 @@ int initialise(const char* paramfile, const char* obstaclefile,
 */
 int timestep(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles);
 int accelerate_flow(const t_param params, t_speed* cells, int* obstacles);
-//int propagate(const t_param params, t_speed* cells, t_speed* tmp_cells);
-int rebound(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles);
-int collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles);
+int propagate(const t_param params, t_speed* cells, t_speed* tmp_cells);
+int rebound_collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles);
+//int collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles);
 int write_values(const t_param params, t_speed* cells, int* obstacles, float* av_vels);
 
 /* finalise, including freeing up allocated memory */
@@ -188,9 +188,9 @@ int main(int argc, char* argv[])
 int timestep(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles)
 {
   accelerate_flow(params, cells, obstacles);
-  //propagate(params, cells, tmp_cells);
-  rebound(params, cells, tmp_cells, obstacles);
-  collision(params, cells, tmp_cells, obstacles);
+  propagate(params, cells, tmp_cells);
+  rebound_collision(params, cells, tmp_cells, obstacles);
+ // collision(params, cells, tmp_cells, obstacles);
   return EXIT_SUCCESS;
 }
 
@@ -227,19 +227,13 @@ int accelerate_flow(const t_param params, t_speed* cells, int* obstacles)
 }
 
 
-
-
-
-int rebound(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles)
+int propagate(const t_param params, t_speed* cells, t_speed* tmp_cells)
 {
-  /* loop over the cells in the grid */
+  /* loop over _all_ cells */
   for (int ii = 0; ii < params.ny; ii++)
   {
     for (int jj = 0; jj < params.nx; jj++)
     {
-      /* if the cell contains an obstacle */
-      if (!obstacles[ii * params.nx + jj])
-      {
       /* determine indices of axis-direction neighbours
       ** respecting periodic boundary conditions (wrap around) */
       int y_n = (ii + 1) % params.ny;
@@ -258,7 +252,29 @@ int rebound(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obsta
       tmp_cells[y_n * params.nx + x_w].speeds[6] = cells[ii * params.nx + jj].speeds[6]; /* north-west */
       tmp_cells[y_s * params.nx + x_w].speeds[7] = cells[ii * params.nx + jj].speeds[7]; /* south-west */
       tmp_cells[y_s * params.nx + x_e].speeds[8] = cells[ii * params.nx + jj].speeds[8]; /* south-east */
-      }else{
+    }
+  }
+
+  return EXIT_SUCCESS;
+}
+
+
+int rebound_collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles)
+{
+
+  const float c_sq = 1.0 / 3.0; /* square of speed of sound */
+  const float w0 = 4.0 / 9.0;  /* weighting factor */
+  const float w1 = 1.0 / 9.0;  /* weighting factor */
+  const float w2 = 1.0 / 36.0; /* weighting factor */
+
+  /* loop over the cells in the grid */
+  for (int ii = 0; ii < params.ny; ii++)
+  {
+    for (int jj = 0; jj < params.nx; jj++)
+    {
+      /* if the cell contains an obstacle */
+      if (obstacles[ii * params.nx + jj])
+      {
         /* called after propagate, so taking values from scratch space
         ** mirroring, and writing into main grid */
         cells[ii * params.nx + jj].speeds[1] = tmp_cells[ii * params.nx + jj].speeds[3];
@@ -269,32 +285,8 @@ int rebound(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obsta
         cells[ii * params.nx + jj].speeds[6] = tmp_cells[ii * params.nx + jj].speeds[8];
         cells[ii * params.nx + jj].speeds[7] = tmp_cells[ii * params.nx + jj].speeds[5];
         cells[ii * params.nx + jj].speeds[8] = tmp_cells[ii * params.nx + jj].speeds[6];
-      }
-    }
-  }
-
-  return EXIT_SUCCESS;
-}
-
-int collision(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles)
-{
-  const float c_sq = 1.0 / 3.0; /* square of speed of sound */
-  const float w0 = 4.0 / 9.0;  /* weighting factor */
-  const float w1 = 1.0 / 9.0;  /* weighting factor */
-  const float w2 = 1.0 / 36.0; /* weighting factor */
-
-  /* loop over the cells in the grid
-  ** NB the collision step is called after
-  ** the propagate step and so values of interest
-  ** are in the scratch-space grid */
-  for (int ii = 0; ii < params.ny; ii++)
-  {
-    for (int jj = 0; jj < params.nx; jj++)
-    {     
-      /* don't consider occupied cells */
-      if (!obstacles[ii * params.nx + jj])
-      {
-        /* compute local density total */
+      } else {
+              /* compute local density total */
         float local_density = 0.0;
 
         for (int kk = 0; kk < NSPEEDS; kk++)
