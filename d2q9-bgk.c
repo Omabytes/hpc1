@@ -188,11 +188,14 @@ int main(int argc, char* argv[])
 
 int timestep(const t_param params, t_speed* cells, t_speed* tmp_cells, int* obstacles)
 {
-  accelerate_flow(params, cells, obstacles);
-  propagate(params, cells, tmp_cells);
-  rebound_collision(params, cells, tmp_cells, obstacles);
- // collision(params, cells, tmp_cells, obstacles);
-  return EXIT_SUCCESS;
+    #pragma omp parallel
+    {
+      accelerate_flow(params, cells, obstacles);
+      propagate(params, cells, tmp_cells);
+      rebound_collision(params, cells, tmp_cells, obstacles);
+     // collision(params, cells, tmp_cells, obstacles);
+      return EXIT_SUCCESS;
+    }
 }
 
 int accelerate_flow(const t_param params, t_speed* cells, int* obstacles)
@@ -204,6 +207,7 @@ int accelerate_flow(const t_param params, t_speed* cells, int* obstacles)
   /* modify the 2nd row of the grid */
   int ii = params.ny - 2;
 
+  #pragma omp for
   for (int jj = 0; jj < params.nx; jj++)
   {
     /* if the cell is not occupied and
@@ -233,6 +237,7 @@ int propagate(const t_param params, t_speed* cells, t_speed* tmp_cells)
   /* loop over _all_ cells */
   for (int ii = 0; ii < params.ny; ii++)
   {
+    #pragma omp for
     for (int jj = 0; jj < params.nx; jj++)
     {
       /* determine indices of axis-direction neighbours
@@ -271,6 +276,7 @@ int rebound_collision(const t_param params, t_speed* cells, t_speed* tmp_cells, 
   /* loop over the cells in the grid */
   for (int ii = 0; ii < params.ny; ii++)
   {
+    #pragma omp for
     for (int jj = 0; jj < params.nx; jj++)
     {
       /* if the cell contains an obstacle */
@@ -383,6 +389,7 @@ float av_velocity(const t_param params, t_speed* cells, int* obstacles)
   /* loop over all non-blocked cells */
   for (int ii = 0; ii < params.ny; ii++)
   {
+    #pragma omp parallel for
     for (int jj = 0; jj < params.nx; jj++)
     {
       /* ignore occupied cells */
@@ -426,6 +433,8 @@ float av_velocity(const t_param params, t_speed* cells, int* obstacles)
 int initialise(const char* paramfile, const char* obstaclefile,
                t_param* params, t_speed** cells_ptr, t_speed** tmp_cells_ptr,
                int** obstacles_ptr, float** av_vels_ptr)
+{
+#pragma omp parallel
 {
   char   message[1024];  /* message buffer */
   FILE*   fp;            /* file pointer */
@@ -515,6 +524,7 @@ int initialise(const char* paramfile, const char* obstaclefile,
 
   for (int ii = 0; ii < params->ny; ii++)
   {
+    #pragma omp for
     for (int jj = 0; jj < params->nx; jj++)
     {
       /* centre */
@@ -535,12 +545,13 @@ int initialise(const char* paramfile, const char* obstaclefile,
   /* first set all cells in obstacle array to zero */
   for (int ii = 0; ii < params->ny; ii++)
   {
+    #pragma omp for
     for (int jj = 0; jj < params->nx; jj++)
     {
       (*obstacles_ptr)[ii * params->nx + jj] = 0;
     }
   }
-
+}
   /* open the obstacle data file */
   fp = fopen(obstaclefile, "r");
 
@@ -613,6 +624,7 @@ float total_density(const t_param params, t_speed* cells)
 
   for (int ii = 0; ii < params.ny; ii++)
   {
+    #pragma omp parallel for
     for (int jj = 0; jj < params.nx; jj++)
     {
       for (int kk = 0; kk < NSPEEDS; kk++)
@@ -644,6 +656,7 @@ int write_values(const t_param params, t_speed* cells, int* obstacles, float* av
 
   for (int ii = 0; ii < params.ny; ii++)
   {
+    #pragma omp parallel for
     for (int jj = 0; jj < params.nx; jj++)
     {
       /* an occupied cell */
